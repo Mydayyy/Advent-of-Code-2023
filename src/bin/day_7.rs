@@ -2,7 +2,7 @@ use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::iter::Iterator;
 
-use itertools::Itertools;
+use itertools::{Itertools, max};
 
 use aoc23::get_input;
 
@@ -34,35 +34,32 @@ impl PartialEq for Bet {
 
 impl Eq for Bet {}
 
-impl PartialOrd for Bet {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.cmp(other))
-    }
-}
 
-impl Ord for Bet {
-    fn cmp(&self, other: &Self) -> Ordering {
-        let CARD_SCORES: HashMap<char, i32> = HashMap::from([
-            ('A', 13), ('K', 12), ('Q', 11), ('J', 10), ('T', 9), ('9', 8), ('8', 7), ('7', 6), ('6', 5), ('5', 4), ('4', 3), ('3', 2), ('2', 1)
-        ]);
-        let order = self.kind.cmp(&other.kind);
-        if order == Ordering::Equal {
-            let chars1 = self.card.chars().collect_vec();
-            let chars2 = other.card.chars().collect_vec();
-            for (idx, char) in chars1.iter().enumerate() {
-                let score1 = CARD_SCORES[&char];
-                let score2 = CARD_SCORES[&chars2[idx]];
-                if score1 > score2 {
-                    return Ordering::Greater;
-                }
-                if score1 < score2 {
-                    return Ordering::Less;
-                }
+fn cmp_card(left: &Bet, right: &Bet, joker: bool) -> Ordering {
+    let card_scores_1: HashMap<char, i32> = HashMap::from([
+        ('A', 13), ('K', 12), ('Q', 11), ('J', 10), ('T', 9), ('9', 8), ('8', 7), ('7', 6), ('6', 5), ('5', 4), ('4', 3), ('3', 2), ('2', 1)
+    ]);
+    let card_scores_2: HashMap<char, i32> = HashMap::from([
+        ('A', 13), ('K', 12), ('Q', 11), ('T', 10), ('9', 9), ('8', 8), ('7', 7), ('6', 6), ('5', 5), ('4', 4), ('3', 3), ('2', 2), ('J', 1)
+    ]);
+    let order = left.kind.cmp(&right.kind);
+    if order == Ordering::Equal {
+        let chars1 = left.card.chars().collect_vec();
+        let chars2 = right.card.chars().collect_vec();
+        for (idx, char) in chars1.iter().enumerate() {
+            let score1 = if joker { card_scores_2[&char] } else { card_scores_1[&char] };
+            let score2 = if joker { card_scores_2[&chars2[idx]] } else { card_scores_1[&chars2[idx]] };
+            if score1 > score2 {
+                return Ordering::Greater;
+            }
+            if score1 < score2 {
+                return Ordering::Less;
             }
         }
-        return order;
     }
+    return order;
 }
+
 
 fn get_kind(card: String) -> Kind {
     let chars: Vec<_> = card.chars().collect::<Vec<_>>();
@@ -98,16 +95,33 @@ fn get_kind(card: String) -> Kind {
     return kind;
 }
 
+fn get_joker_kind(cards: String) -> Kind {
+    let mut kinds = vec![];
+    for x in "AKQJT98765432".chars() {
+        let cards = cards.chars().map(|n| if n == 'J' { x } else { n }).map(|x| x.to_string()).collect_vec().join("");
+        kinds.push(get_kind(cards));
+    }
+
+    return max(kinds).unwrap();
+}
+
 fn main() {
     let input = get_input(7);
 
-    let mut bets: Vec<Bet> = input.lines().map(|line| Bet {
+    let mut bets1: Vec<Bet> = input.lines().map(|line| Bet {
         card: line.split_once(" ").unwrap().0.parse().unwrap(),
         kind: get_kind(line.split_once(" ").unwrap().0.parse().unwrap()),
         bid: line.split_once(" ").unwrap().1.parse().unwrap(),
     }).collect();
+    let mut bets2: Vec<Bet> = input.lines().map(|line| Bet {
+        card: line.split_once(" ").unwrap().0.parse().unwrap(),
+        kind: get_joker_kind(line.split_once(" ").unwrap().0.parse().unwrap()),
+        bid: line.split_once(" ").unwrap().1.parse().unwrap(),
+    }).collect();
 
-    bets.sort();
+    bets1.sort_by(|a, b| cmp_card(a, b, false));
+    bets2.sort_by(|a, b| cmp_card(a, b, true));
 
-    println!("{:?}", bets.iter().enumerate().map(|(idx, bet)| (idx as i64 + 1) * bet.bid).sum::<i64>());
+    println!("{:?}", bets1.iter().enumerate().map(|(idx, bet)| (idx as i64 + 1) * bet.bid).sum::<i64>());
+    println!("{:?}", bets2.iter().enumerate().map(|(idx, bet)| (idx as i64 + 1) * bet.bid).sum::<i64>());
 }
